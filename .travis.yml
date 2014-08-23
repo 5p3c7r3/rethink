@@ -4,4 +4,7 @@ python:
 install: "pip install -r requirements.txt"
 script: nosetests
 before_install:
-- rethinkdb
+  - sudo add-apt-repository ppa:rethinkdb/ppa -y
+  - sudo apt-get update -q
+  - sudo apt-get install rethinkdb
+  - rethinkdb
