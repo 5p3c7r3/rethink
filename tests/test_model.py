@@ -4,12 +4,12 @@ import rdb
 from datetime import datetime
 from dateutil.tz import tzutc
 
-
+rdb.connect(host='localhost', port=28015, db='rethink').repl()
 try:
-    rdb.connect(host='localhost', port=28015, db='rethink').repl()
     rdb.db_drop('rethink').run()
-finally:
-    rdb.db_create('rethink').run()
+except Exception:
+    pass
+rdb.db_create('rethink').run()
 
 
 class TestModel(rdb.Model):
