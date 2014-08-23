@@ -1,3 +1,4 @@
+https://travis-ci.org/caoimhghin/rethink.svg?branch=master
 # RethinkDB Object Mapper
 Inspired by:
 * Google Appengine NDB: https://developers.google.com/appengine/docs/python/ndb/
