@@ -1,4 +1,4 @@
-https://travis-ci.org/caoimhghin/rethink.svg?branch=master
+[![Build Status](https://travis-ci.org/caoimhghin/rethink.svg?branch=master)](https://travis-ci.org/caoimhghin/rethink)
 # RethinkDB Object Mapper
 Inspired by:
 * Google Appengine NDB: https://developers.google.com/appengine/docs/python/ndb/
