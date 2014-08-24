@@ -36,6 +36,14 @@ class TestModelBooleanProperty(rdb.Model):
     lovable = rdb.BooleanProperty()
 
 
+class TestValidatorMRO(rdb.Model):
+    children = rdb.PositiveIntegerProperty()
+
+
+class TestFloatProperty(rdb.Model):
+    dollars = rdb.FloatProperty(default=1.0)
+
+
 class TestModelFunctions(unittest.TestCase):
 
     def setUp(self):
@@ -55,9 +63,13 @@ class TestModelFunctions(unittest.TestCase):
         """
         test_model = TestModel(name='Jack')
         test_model.put()
+        id = test_model.id
+
+        test_model = TestModel.get_by_id(id)
         test_model.name = 'Alice'
         test_model.put()
 
+        self.assertEqual(id, test_model.id)
         self.assertEqual(test_model.name, 'Alice')
 
     def test_get(self):
@@ -107,6 +119,12 @@ class TestModelFunctions(unittest.TestCase):
         self.assertEqual(o.name, "JAMES BOND")
 
     @raises(ValueError)
+    def test_model_string_property_maxlength(self):
+        # by default a string can't be longer than 500 characters
+        m = TestModelStringProperty(name="x"*501)
+        m.put()
+
+    @raises(ValueError)
     def test_model_invalid_string_property(self):
         m = TestModelStringProperty(name=12345)
         m.put()
@@ -117,11 +135,51 @@ class TestModelFunctions(unittest.TestCase):
         m = TestModelBooleanProperty.get_by_id(m.id)
         self.assertTrue(m.lovable)
 
+        m = TestModelBooleanProperty(lovable=0)
+        m.put()
+        self.assertFalse(m.lovable)
+
+        m = TestModelBooleanProperty(lovable=1)
+        m.put()
+        self.assertTrue(m.lovable)
+
+
     @raises(ValueError)
     def test_model_invalid_boolean_property(self):
         m = TestModelBooleanProperty(lovable="false")
         m.put()
 
+    def test_validate_mro(self):
+        try:
+            TestValidatorMRO(children="abcd")
+        except ValueError as e:
+            # this should be error expected integer from the base class IntegerProperty,
+            # not the PositiveIntegerProperty validator
+            self.assertTrue("Expected integer" in e.message)
+
+    def test_float_property(self):
+        m = TestFloatProperty()
+        m.dollars = 12.5
+        m.put()
+
+        m = TestFloatProperty.get_by_id(m.id)
+        self.assertEqual(m.dollars, 12.5)
+
+        # integers are allowed
+        m.dollars = 20
+        m.put()
+
+        m = TestFloatProperty.get_by_id(m.id)
+        self.assertEqual(m.dollars, 20)
+
+    @raises(ValueError)
+    def test_invalid_float_property(self):
+        TestFloatProperty(dollars="not a float")
+
+    @raises(ValueError)
+    def test_invalid_validator(self):
+        class TestModelStringProperty(rdb.Model):
+            name = rdb.StringProperty(validator="not a function")
 
 if __name__ == '__main__':
     unittest.main()

@@ -43,12 +43,12 @@ more verbose name in your code.
 The following additional keyword arguments are also supported
 
 <table>
-<th>
-    <td>Argument</td>
-    <td>Type</td>
-    <td>Default</td>
-    <td>Description</td>
-</th>
+<tr>
+    <th>Argument</th>
+    <th>Type</th>
+    <th>Default</th>
+    <th>Description</th>
+</tr>
 <tr>
     <td>indexed</td>
     <td></td>
@@ -82,10 +82,10 @@ There is only one property that maps to the python datetime class:
     All datetimes are stored in the database with timezone information in UTC time.
 
 <table>
-<th>
-    <td>Option</td>
-    <td>Description</td>
-</th>
+<tr>
+    <th>Option</th>
+    <th>Description</th>
+</tr>
 <tr>
     <td>auto_now_add</td>
     <td>Set property to current date/time when entity is created.</td>

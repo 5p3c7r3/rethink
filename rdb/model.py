@@ -64,17 +64,29 @@ class Property(object):
             self._name = name
 
     def _do_validate(self, value):
-        value = self._call_shallow_validation(value)
+        value = self._call_validation(value)
         if self._validator is not None:
             new_value = self._validator(self, value)
             if new_value is not None:
                 value = new_value
         return value
 
-    def _call_shallow_validation(self, value):
-        """ Call the initial set of _validate() methods.
+    def _call_validation(self, value):
+        """ Call the initial set of _validate() methods using reverse Method Resolution Order.
+        For instance if class hierarchy looks like (-> = extends):
+
+        A -> B -> C -> D
+
+        This will start with the most base-class validate method and execute backwards:
+
+        D.validate()
+        C.validate()
+        B.validate()
+        A.validate()
         """
-        call = self._apply_list(self._find_methods('_validate'))
+        validate_methods = self._find_methods('_validate')
+        validate_methods.reverse()
+        call = self._apply_list(validate_methods)
         return call(value)
 
     @classmethod
@@ -190,6 +202,14 @@ class IntegerProperty(Property):
         if not isinstance(value, (int, long)):
             raise ValueError('Expected integer, got %r' % (value,))
         return int(value)
+
+
+class PositiveIntegerProperty(IntegerProperty):
+
+    def _validate(self, value):
+        if int(value) < 0:
+            raise ValueError('Expected positive integer, got %r' % (value,))
+        return value
 
 
 class FloatProperty(Property):
@@ -322,23 +342,6 @@ class Model(object):
                 d[key] = getattr(self, key)
         return d
 
-    def evaluate_insert(self, result):
-        if 'errors' in result and result['errors'] > 1:
-            raise IOError(dumps(result))
-        elif result['inserted'] == 1.0:
-            self.id = result.get('generated_keys', [self.id])[0]
-        return result
-
-    @classmethod
-    def evaluate_update(cls, result):
-        if 'updated' in result and result['updated'] == 0:
-            raise ValueError(dumps(result))
-        if 'replaced' in result and result['replaced'] == 0:
-            raise ValueError(dumps(result))
-        if 'errors' in result and result['errors'] > 0:
-            raise IOError(dumps(result))
-        return result
-
     @classmethod
     def query(cls):
         """ The rethinkdb query object. Exposes RQL queries for this table
@@ -396,7 +399,9 @@ class Model(object):
     def put(self):
         """ Serialize this document to JSON and put it in the database
         """
-        return self.evaluate_insert(table(self._table_name()).insert(
-            self._to_db(),
-            upsert=True
-        ).run(self._connection))
+        result = table(self._table_name()).insert(self._to_db(), upsert=True).run(self._connection)
+        if 'errors' in result and result['errors'] > 0:
+            raise IOError(dumps(result))
+        elif result['inserted'] == 1.0:
+            self.id = result.get('generated_keys', [self.id])[0]
+        return result
