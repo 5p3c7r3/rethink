@@ -1,12 +1,11 @@
 """ Model and Property classes. Borrowed heavily from google/appengine/ext/ndb/model
 
 """
-import math
 import types
-
+import pytz
 from json import dumps
 
-from datetime import tzinfo, timedelta, date
+from datetime import date
 
 from . import utils
 
@@ -28,6 +27,7 @@ class Property(object):
     _indexed = True
     _positional = 1
 
+    # todo test property names / keys that match ^\$reql_.+\$$ aren't allowed by rethinkdb
 
     @utils.positional(1 + _positional)  # Add 1 for self.
     def __init__(self, name=None, indexed=None, required=False, default=None, validator=None):
@@ -84,6 +84,12 @@ class Property(object):
         B.validate()
         A.validate()
         """
+        if value is None:
+            if self._required:
+                raise ValueError("No value given for required property: %s" % self._attr_name)
+            else:
+                return value
+
         validate_methods = self._find_methods('_validate')
         validate_methods.reverse()
         call = self._apply_list(validate_methods)
@@ -134,12 +140,21 @@ class Property(object):
             return value
         return call
 
-    def to_db(self, entity):
-        """ Transform the python value for storage in the db
-        :param value: The value from python object
-        :return: The value for the database
+    def _do_to_db(self, entity):
+        """ Transform the python value for storage in the db, first running all
+        validators on the property.
         """
-        return self._do_validate(entity._values.get(self._name, self._default))
+        value = self._do_validate(entity._values.get(self._name, self._default))
+        if hasattr(self, '_to_db'):
+            value = self._to_db(value)
+        return value
+
+    def _do_from_db(self, entity, value):
+        """ Set the property value from the db and transform it for python
+        """
+        if hasattr(self, '_from_db'):
+            value = self._from_db(value)
+        entity._values[self._name] = value
 
     def __get__(self, entity, unused_cls=None):
         """Descriptor protocol: get the value from the entity."""
@@ -175,12 +190,9 @@ class BooleanProperty(Property):
         return value
 
 
-# todo make StringProperty default to indexed
-# todo make TextProperty default to non-indexed
-
-
 class TextProperty(Property):
     _max_length = None
+    _indexed = False
 
     def _validate(self, value):
         if not isinstance(value, types.StringTypes):
@@ -194,6 +206,7 @@ class TextProperty(Property):
 
 class StringProperty(TextProperty):
     _max_length = 500
+    _indexed = True
 
 
 class IntegerProperty(Property):
@@ -220,36 +233,40 @@ class FloatProperty(Property):
         return float(value)
 
 
-class TZ(tzinfo):
-    def utcoffset(self, dt): return timedelta(minutes=-399)
-
-
 class DateTimeProperty(Property):
     _auto_now_add = False
     _auto_now = False
 
-    def __init__(self, required=False, default=None, auto_now=False, auto_now_add=False):
+    @utils.positional(1 + Property._positional)  # Add 1 for self.
+    def __init__(self, name=None, indexed=None, required=False, default=None, validator=None, auto_now=False, auto_now_add=False):
         self._auto_now = auto_now
         self._auto_now_add = auto_now_add
 
         super(DateTimeProperty, self).__init__(required=required, default=default)
 
     def _validate(self, value):
-        # datetime(2002, 12, 25, tzinfo=TZ()).isoformat(' ')
-        # r.table("user").get("John").update({birth: r.ISO8601('1986-11-03T08:30:00-07:00')}).run(conn, callback)
         if not isinstance(value, date):
             raise TypeError("Must be a python datetime value")
         return value
 
-    def to_db(self, entity):
-        value = entity._values.get(self._name, self._default)
-        if not value and self._auto_now or self._auto_now_add:
+    def _from_db(self, value):
+        # todo do we need to do any massaging here?
+        return value
+
+    def _to_db(self, value):
+        if value is None and self._auto_now or self._auto_now_add:
             return now()
 
-        elif value and self._auto_now:
+        elif self._auto_now:
             return now()
 
-        # todo all dates should be converted to UTC
+        if value is None and not self._required:
+            return None
+
+        if value.tzinfo:
+            value = value.astimezone(pytz.utc)
+        else:
+            value = pytz.utc.localize(value)
 
         return iso8601(value.isoformat('T'))
 
@@ -318,7 +335,10 @@ class Model(object):
     @classmethod
     def _sync_table(cls):
         """ Create a table for this model if it doesn't already exist, override
-        the table name by setting _table on the class
+        the table name by setting _table on the class. Updates simple indexes as
+        defined by the properties.
+
+        Complex indexes need to be created separately.
         """
         if cls.__name__ == 'Model':
             return  # skip call on this class
@@ -326,6 +346,13 @@ class Model(object):
         tables = table_list().run()
         if not cls._table_name() in tables:
             table_create(cls._table_name()).run()
+
+        indexes = table(cls._table_name()).index_list().run()
+        for name, attr in cls._meta.iteritems():
+            if attr._indexed and attr._name not in indexes:
+                table(cls._table_name()).index_create(attr._name).run(noreply=True)
+            elif not attr._indexed and attr._name in indexes:
+                table(cls._table_name()).index_drop(attr._name).run(noreply=True)
 
     def _set_attributes(self, kwargs):
         cls = self.__class__
@@ -381,7 +408,7 @@ class Model(object):
         entity.id = db_dict.pop('id')
         for name, value in db_dict.iteritems():
             attr = cls._meta[name]
-            setattr(entity, attr._attr_name, value)
+            attr._do_from_db(entity, value)
         return entity
 
     def _to_db(self):
@@ -389,7 +416,7 @@ class Model(object):
 
         # Validate any defined fields and set any defaults
         for name, attr in self._meta.iteritems():
-            db_doc[name] = attr.to_db(self)
+            db_doc[name] = attr._do_to_db(self)
 
         if self.id:
             db_doc['id'] = self.id

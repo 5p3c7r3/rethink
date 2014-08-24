@@ -1,8 +1,8 @@
-import unittest
+import pytz
 import rdb
+import unittest
 
 from datetime import datetime
-from dateutil.tz import tzutc
 
 from nose.tools import *
 
@@ -15,33 +15,38 @@ rdb.db_create('rethink').run()
 
 
 class TestModel(rdb.Model):
-    name = rdb.StringProperty()
+    name = rdb.StringProperty(indexed=False)
 
 
 class TestDateTimeModel(rdb.Model):
     name = rdb.StringProperty()
-    created = rdb.DateTimeProperty()
+    created = rdb.DateTimeProperty(indexed=False)
 
 
 class TestDateTimeAutoNow(rdb.Model):
     name = rdb.StringProperty()
-    created = rdb.DateTimeProperty(auto_now=True)
+    created = rdb.DateTimeProperty(auto_now=True, indexed=False)
 
 
 class TestModelStringProperty(rdb.Model):
-    name = rdb.StringProperty("n", required=False, default="__default__", validator=lambda p, val: str(val).upper())
+    name = rdb.StringProperty("n", indexed=False, required=False, default="__default__", validator=lambda p, val: str(val).upper())
 
 
 class TestModelBooleanProperty(rdb.Model):
-    lovable = rdb.BooleanProperty()
+    lovable = rdb.BooleanProperty(indexed=False)
 
 
 class TestValidatorMRO(rdb.Model):
-    children = rdb.PositiveIntegerProperty()
+    children = rdb.PositiveIntegerProperty(indexed=False)
 
 
 class TestFloatProperty(rdb.Model):
-    dollars = rdb.FloatProperty(default=1.0)
+    dollars = rdb.FloatProperty(default=1.0, indexed=False)
+
+
+class TestRequiredProperty(rdb.Model):
+    name = rdb.StringProperty(required=True, indexed=False)
+    found_on = rdb.DateTimeProperty(required=True, indexed=False)
 
 
 class TestModelFunctions(unittest.TestCase):
@@ -90,7 +95,7 @@ class TestModelFunctions(unittest.TestCase):
         self.assertFalse(result)
 
     def test_datetime(self):
-        test_model = TestDateTimeModel(name='Jack', created=datetime(2002, 12, 25, tzinfo=tzutc()))
+        test_model = TestDateTimeModel(name='Jack', created=datetime(2002, 12, 25))
         test_model.put()
 
     def test_datetime_auto_now(self):
@@ -100,7 +105,7 @@ class TestModelFunctions(unittest.TestCase):
         result = TestDateTimeAutoNow.get_by_id(test_model.id)
         self.assertTrue(result.created)
 
-        self.assertLess(result.created, datetime.now(tzutc()))
+        self.assertLess(result.created, datetime.now(pytz.timezone('UTC')))
 
     def test_set_id(self):
         test_model = TestModel(id='jackwuzhere', name='Jack')
@@ -176,10 +181,23 @@ class TestModelFunctions(unittest.TestCase):
     def test_invalid_float_property(self):
         TestFloatProperty(dollars="not a float")
 
-    @raises(ValueError)
+    @raises(TypeError)
     def test_invalid_validator(self):
         class TestModelStringProperty(rdb.Model):
             name = rdb.StringProperty(validator="not a function")
+
+    @raises(ValueError)
+    def test_required_string_property(self):
+        # missing required StringProperty
+        m = TestRequiredProperty(found_on=datetime(2002, 12, 25))
+        m.put()
+
+    @raises(ValueError)
+    def test_required_datetime_property(self):
+        # missing required DateTimeProperty
+        m = TestRequiredProperty(name="James Bond")
+        m.put()
+
 
 if __name__ == '__main__':
     unittest.main()
