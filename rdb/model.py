@@ -18,28 +18,6 @@ from rethinkdb.ast import expr, RqlQuery
 import rethinkdb.docs
 
 
-def negative_field_check(should_check, value):
-    if not should_check:
-        return value
-
-    if not isinstance(value, (int, float, long)):
-        raise ValueError('%s field is the wrong type. Checked: int, long, float' % value)
-
-    if not value < 0:
-        raise ValueError('%s field is not a negative value' % value)
-
-
-def positive_field_check(should_check, value):
-    if not should_check:
-        return value
-
-    if not isinstance(value, (int, float, long)):
-        raise ValueError('%s field is the wrong type. Checked: int, long, float' % value)
-
-    if not value > 0:
-        raise ValueError('%s field is not a positive value.' % value)
-
-
 class Property(object):
 
     _attr_name = None
@@ -86,11 +64,63 @@ class Property(object):
             self._name = name
 
     def _do_validate(self, value):
+        value = self._call_shallow_validation(value)
         if self._validator is not None:
             new_value = self._validator(self, value)
             if new_value is not None:
                 value = new_value
         return value
+
+    def _call_shallow_validation(self, value):
+        """ Call the initial set of _validate() methods.
+        """
+        call = self._apply_list(self._find_methods('_validate'))
+        return call(value)
+
+    @classmethod
+    def _find_methods(cls, *names):
+        """ Compute a list of composable methods.
+
+        Because this is a common operation and the class hierarchy is
+        static, the outcome is cached (assuming that for a particular list
+        of names the reversed flag is either always on, or always off).
+
+        Args:
+            *names: One or more method names.
+
+        Returns:
+            A list of callable class method objects.
+        """
+        cache = cls.__dict__.get('_find_methods_cache')
+        if cache:
+            hit = cache.get(names)
+            if hit is not None:
+                return hit
+        else:
+            cls._find_methods_cache = cache = {}
+        methods = []
+        for c in cls.__mro__:
+            for name in names:
+                method = c.__dict__.get(name)
+                if method is not None:
+                    methods.append(method)
+        cache[names] = methods
+        return methods
+
+    def _apply_list(self, methods):
+        """ Return a single callable that applies a list of methods to a value.
+
+        If a method returns None, the last value is kept; if it returns
+        some other value, that replaces the last value.  Exceptions are
+        not caught.
+        """
+        def call(value):
+            for method in methods:
+                newvalue = method(self, value)
+                if newvalue is not None:
+                    value = newvalue
+            return value
+        return call
 
     def to_db(self, entity):
         """ Transform the python value for storage in the db
@@ -98,14 +128,6 @@ class Property(object):
         :return: The value for the database
         """
         return self._do_validate(entity._values.get(self._name, self._default))
-
-    def ensure_max_digits(self, value):
-        if not self.max_digits:
-            self.max_digits = int(self.max_digits)
-            if self.max_digits > 0 and not value < math.pow(10, self.max_digits) and \
-                    not value > -math.pow(10, self.max_digits):
-                raise ValueError('%s field size invalid. Constraint: maximum %d digits. Value: %d' % (self._name, self.max_digits, value))
-        return value
 
     def __get__(self, entity, unused_cls=None):
         """Descriptor protocol: get the value from the entity."""
@@ -192,7 +214,7 @@ class DateTimeProperty(Property):
 
         super(DateTimeProperty, self).__init__(required=required, default=default)
 
-    def validate(self, value):
+    def _validate(self, value):
         # datetime(2002, 12, 25, tzinfo=TZ()).isoformat(' ')
         # r.table("user").get("John").update({birth: r.ISO8601('1986-11-03T08:30:00-07:00')}).run(conn, callback)
         if not isinstance(value, date):
@@ -213,7 +235,7 @@ class DateTimeProperty(Property):
 
 
 class ObjectProperty(Property):
-    def validate(self, value):
+    def _validate(self, value):
         if type(value) is not dict and type(value) is not list:
             raise ValueError('%s field is not dict or list type. Found type: %s' % (
                 self._name,

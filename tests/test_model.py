@@ -4,6 +4,8 @@ import rdb
 from datetime import datetime
 from dateutil.tz import tzutc
 
+from nose.tools import *
+
 rdb.connect(host='localhost', port=28015, db='rethink').repl()
 try:
     rdb.db_drop('rethink').run()
@@ -28,6 +30,10 @@ class TestDateTimeAutoNow(rdb.Model):
 
 class TestModelStringProperty(rdb.Model):
     name = rdb.StringProperty("n", required=False, default="__default__", validator=lambda p, val: str(val).upper())
+
+
+class TestModelBooleanProperty(rdb.Model):
+    lovable = rdb.BooleanProperty()
 
 
 class TestModelFunctions(unittest.TestCase):
@@ -99,6 +105,22 @@ class TestModelFunctions(unittest.TestCase):
         o = TestModelStringProperty.get_by_id(m.id)
         self.assertEqual(o._to_db()['n'], 'JAMES BOND')
         self.assertEqual(o.name, "JAMES BOND")
+
+    @raises(ValueError)
+    def test_model_invalid_string_property(self):
+        m = TestModelStringProperty(name=12345)
+        m.put()
+
+    def test_model_boolean_property(self):
+        m = TestModelBooleanProperty(lovable=True)
+        m.put()
+        m = TestModelBooleanProperty.get_by_id(m.id)
+        self.assertTrue(m.lovable)
+
+    @raises(ValueError)
+    def test_model_invalid_boolean_property(self):
+        m = TestModelBooleanProperty(lovable="false")
+        m.put()
 
 
 if __name__ == '__main__':
