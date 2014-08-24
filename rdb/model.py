@@ -1,10 +1,14 @@
+""" Model and Property classes. Borrowed heavily from google/appengine/ext/ndb/model
+
+"""
 import math
 import types
-import logging
 
 from json import dumps
 
-from datetime import tzinfo, timedelta
+from datetime import tzinfo, timedelta, date
+
+from . import utils
 
 # set all the imports here from rethinkdb.* with "object" import removed
 from rethinkdb.net import connect, Connection, Cursor
@@ -38,24 +42,54 @@ def positive_field_check(should_check, value):
 
 class Property(object):
 
+    _attr_name = None
     _name = None
     _required = True
     _default = None
+    _validator = None
+    _indexed = True
+    _positional = 1
 
-    # todo allow setting a code_name to use in db
-    def __init__(self, required=False, default=None):
-        self._default = default
-        self._required = required
+
+    @utils.positional(1 + _positional)  # Add 1 for self.
+    def __init__(self, name=None, indexed=None, required=False, default=None, validator=None):
+        if name is not None:
+            if isinstance(name, unicode):
+                name = name.encode('utf-8')
+            if not isinstance(name, str):
+                raise TypeError('Name %r is not a string' % (name,))
+            if '.' in name:
+                raise ValueError('Name %r cannot contain period characters' % (name,))
+            self._name = name
+
+        if indexed is not None:
+            self._indexed = indexed
+
+        if default is not None:
+            self._default = default
+
+        if required is not None:
+            self._required = required
+
+        if validator is not None:
+            if not hasattr(validator, '__call__'):
+                raise TypeError("Validator must be callable or None; received %r" % validator)
+            self._validator = validator
 
     def _set_name(self, name):
-        self._name = name
+        """ Assign a name if no name was given. The name of the class attribute is
+        passed in from _map_properties as a default name. This allows assignment of a
+        shorter name for database storage, but still use a verbose name in code.
+        """
+        self._attr_name = name
+        if self._name is None:
+            self._name = name
 
-    def validate(self, value):
-        if not value and self._default:
-            return self._default
-
-        if not value and self._required == True:
-            raise ValueError('%s field is a required field. NoneType found.' % self._name)
+    def _do_validate(self, value):
+        if self._validator is not None:
+            new_value = self._validator(self, value)
+            if new_value is not None:
+                value = new_value
         return value
 
     def to_db(self, entity):
@@ -63,7 +97,7 @@ class Property(object):
         :param value: The value from python object
         :return: The value for the database
         """
-        return self.validate(entity._values.get(self._name, self._default))
+        return self._do_validate(entity._values.get(self._name, self._default))
 
     def ensure_max_digits(self, value):
         if not self.max_digits:
@@ -71,16 +105,6 @@ class Property(object):
             if self.max_digits > 0 and not value < math.pow(10, self.max_digits) and \
                     not value > -math.pow(10, self.max_digits):
                 raise ValueError('%s field size invalid. Constraint: maximum %d digits. Value: %d' % (self._name, self.max_digits, value))
-        return value
-
-    def ensure_max_decimals(self, value):
-        # todo: try think of a better way to do this.
-        if self.max_decimals and not self.round_decimals:
-            decimals = str(value - int(value))
-            if decimals.startswith("0.") and len(decimals[2:]) > self.max_decimals:
-                raise ValueError("%s field size invalid. Constraint: maximum %d decimals. Value: %f" % (self._name, self.max_decimals, value))
-        elif self.max_decimals:
-            value = round(value, self.max_decimals)
         return value
 
     def __get__(self, entity, unused_cls=None):
@@ -91,7 +115,7 @@ class Property(object):
 
     def __set__(self, entity, value):
         """Descriptor protocol: set the value on the entity."""
-        entity._values[self._name] = value
+        entity._values[self._name] = self._do_validate(value)
 
     def __delete__(self, entity):
         """Descriptor protocol: delete the value from the entity."""
@@ -100,19 +124,19 @@ class Property(object):
 
 
 class BooleanProperty(Property):
-    def validate(self, value):
-        value = super(BooleanProperty, self).validate(value)
-        if isinstance(value, bool):
-            return value
+    """ A Property whose value is a Python bool. Integers are converted into booleans
+    by changing 0 to False and anything else to True
+    """
 
+    def _validate(self, value):
         if isinstance(value, int):
-            if int(value) == 0:
+            if value == 0:
                 value = False
-            elif int(value) == 1:
-                value = True
             else:
-                raise ValueError('%s field could not be converted to Boolean. Expected 0 or 1, found: %r'
-                                 % (self._name, value))
+                value = True
+
+        if not isinstance(value, bool):
+            raise ValueError('Expected bool, got %r' % (value,))
 
         return value
 
@@ -120,77 +144,38 @@ class BooleanProperty(Property):
 # todo make StringProperty default to indexed
 # todo make TextProperty default to non-indexed
 
-class StringProperty(Property):
-    max_length = None
-    min_length = None
 
-    utf8 = True
+class TextProperty(Property):
+    _max_length = None
 
-    def validate(self, value):
-        value = super(StringProperty, self).validate(value)
+    def _validate(self, value):
+        if not isinstance(value, types.StringTypes):
+            raise ValueError("String type expected; found %r" % (value,))
 
-        if isinstance(value, types.StringTypes):
-            return value
-
-        elif value:
-            try:
-                value = str(value if not self.utf8 else value.encode('utf8'))
-            except:
-                raise ValueError('%s field is not a String type.' % self._name)
-
-        if self.min_length and len(value) < self.min_length:
-            raise ValueError('%s field too small. Constrained to maximum %d chars. Currently %d: "%s"'
-                             % (self._name, self.min_length, len(value), value))
-
-        if self.max_length and len(value) > self.max_length:
-            raise ValueError('%s field too long. Constrained to maximum %d chars. Currently %d: "%s"'
-                             % (self._name, self.max_length, len(value),
-                                value[:20] + ' [...]' if len(value) > 20 else value))
+        if self._max_length and len(value) > self._max_length:
+            raise ValueError("Value must be less than or equal to %s characters" % self._max_length)
 
         return value
 
 
+class StringProperty(TextProperty):
+    _max_length = 500
+
+
 class IntegerProperty(Property):
-    positive_only = False
-    negative_only = False
-    max_digits = None
 
-    def validate(self, value):
-        value = super(IntegerProperty, self).validate(value)
-
-        if isinstance(value, int):
-            return value
-        elif value:
-            value = int(value)
-
-        negative_field_check(self.negative_only, value)
-        positive_field_check(self.positive_only, value)
-
-        return self.ensure_max_digits(value)
+    def _validate(self, value):
+        if not isinstance(value, (int, long)):
+            raise ValueError('Expected integer, got %r' % (value,))
+        return int(value)
 
 
 class FloatProperty(Property):
-    negative_only = False
-    positive_only = False
-    max_digits = None
-    max_decimals = None
-    round_decimals = False
 
-    def validate(self, value):
-        value = super(FloatProperty, self).validate(value)
-
-        if isinstance(value, float):
-            return value
-        elif not value == None:
-            value = float(value)
-
-        negative_field_check(self.negative_only, value)
-        positive_field_check(self.positive_only, value)
-
-        if self.max_digits and self.max_digits > 0:
-            IntegerProperty(name=self._name, max_digits=self.max_digits).validate(value)
-
-        return self.ensure_max_decimals(value)
+    def _validate(self, value):
+        if not isinstance(value, (int, long, float)):
+            raise ValueError('Expected float, got %r' % (value,))
+        return float(value)
 
 
 class TZ(tzinfo):
@@ -210,6 +195,8 @@ class DateTimeProperty(Property):
     def validate(self, value):
         # datetime(2002, 12, 25, tzinfo=TZ()).isoformat(' ')
         # r.table("user").get("John").update({birth: r.ISO8601('1986-11-03T08:30:00-07:00')}).run(conn, callback)
+        if not isinstance(value, date):
+            raise TypeError("Must be a python datetime value")
         return value
 
     def to_db(self, entity):
@@ -299,9 +286,11 @@ class Model(object):
             table_create(cls._table_name()).run()
 
     def _set_attributes(self, kwargs):
+        cls = self.__class__
         for name, value in kwargs.iteritems():
-            if not name in self._meta.keys():
-                raise TypeError("Attempted to set non-property type")
+            prop = getattr(cls, name)  # Raises AttributeError for unknown properties.
+            if not isinstance(prop, Property):
+                raise TypeError("Attempted to set non-property type; %s" % name)
             setattr(self, name, value)
 
     def __json__(self):
@@ -352,7 +341,7 @@ class Model(object):
 
         result = cls.query().get(id).run(connection)
         if result:
-            result = cls(**result)
+            result = cls._from_db(result)
         return result
 
     @classmethod
@@ -361,7 +350,16 @@ class Model(object):
             return None
         return cls.query().get(id).delete().run(connection)
 
-    def put(self):
+    @classmethod
+    def _from_db(cls, db_dict):
+        entity = cls()
+        entity.id = db_dict.pop('id')
+        for name, value in db_dict.iteritems():
+            attr = cls._meta[name]
+            setattr(entity, attr._attr_name, value)
+        return entity
+
+    def _to_db(self):
         db_doc = {}
 
         # Validate any defined fields and set any defaults
@@ -371,7 +369,12 @@ class Model(object):
         if self.id:
             db_doc['id'] = self.id
 
+        return db_doc
+
+    def put(self):
+        """ Serialize this document to JSON and put it in the database
+        """
         return self.evaluate_insert(table(self._table_name()).insert(
-            db_doc,
+            self._to_db(),
             upsert=True
         ).run(self._connection))

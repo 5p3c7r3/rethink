@@ -26,6 +26,10 @@ class TestDateTimeAutoNow(rdb.Model):
     created = rdb.DateTimeProperty(auto_now=True)
 
 
+class TestModelStringProperty(rdb.Model):
+    name = rdb.StringProperty("n", required=False, default="__default__", validator=lambda p, val: str(val).upper())
+
+
 class TestModelFunctions(unittest.TestCase):
 
     def setUp(self):
@@ -85,6 +89,17 @@ class TestModelFunctions(unittest.TestCase):
         test_model.put()
 
         self.assertEqual(test_model.id, 'jackwuzhere')
+
+    def test_model_string_property(self):
+        m = TestModelStringProperty(name="James Bond")
+        m.put()
+        self.assertEqual(m._to_db()['n'], 'JAMES BOND')
+        self.assertEqual(m.name, "JAMES BOND")
+
+        o = TestModelStringProperty.get_by_id(m.id)
+        self.assertEqual(o._to_db()['n'], 'JAMES BOND')
+        self.assertEqual(o.name, "JAMES BOND")
+
 
 if __name__ == '__main__':
     unittest.main()
