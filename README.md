@@ -1,6 +1,7 @@
 ## RethinkDB Object Mapper
 ### Build status:
 [![Build Status](https://travis-ci.org/caoimhghin/rethink.svg?branch=master)](https://travis-ci.org/caoimhghin/rethink)
+[![Coverage Status](https://coveralls.io/repos/caoimhghin/rethink/badge.png?branch=master)](https://coveralls.io/r/caoimhghin/rethink?branch=master)
 ### Inspired by:
 * Google Appengine NDB: https://developers.google.com/appengine/docs/python/ndb/
 * RWrapper: https://github.com/dparlevliet/rwrapper
