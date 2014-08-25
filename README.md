@@ -8,7 +8,11 @@
 * RethinkEngine: https://github.com/bwind/rethinkengine
 * PyRethinkORM: https://github.com/JoshAshby/pyRethinkORM
 
-### Usage
+### Why
+I consider NDB to be a premier programming interface in its simplicity and ease of use and understanding. I've worked
+with NDB for a few years now and want to create a similarly beautiful and simple interface to a datastore that I can
+host anywhere. RethinkDB seems to fit the datastore implementation that I'm looking for, so all we need is a
+compelling interface that we will love to use and build products and services with.
 
 #### Establish a connection
 A connection manager would be nice to build, something that can be easily plugged into Django or Flask request

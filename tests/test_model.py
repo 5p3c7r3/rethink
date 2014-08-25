@@ -183,7 +183,7 @@ class TestModelFunctions(unittest.TestCase):
 
     @raises(TypeError)
     def test_invalid_validator(self):
-        class TestModelStringProperty(rdb.Model):
+        class TestModelStringPropertyInvalidValidator(rdb.Model):
             name = rdb.StringProperty(validator="not a function")
 
     @raises(ValueError)
@@ -217,6 +217,25 @@ class TestModelFunctions(unittest.TestCase):
         # should use the short codename of a property if provided
         self.assertTrue('short' in indexes)
 
+    def test_to_dict(self):
+        m = TestModel(
+            name = "James Bond"
+        )
+        m.put()
+
+        m = TestModel.get_by_id(m.id)
+        self.assertIsNotNone(m)
+        self.assertTrue('name' in m.to_dict())
+        self.assertEquals('James Bond', m.to_dict()['name'])
+
+    def test_get_wrong_type_id(self):
+        m = TestModelStringProperty(
+            name = "James Bond"
+        )
+        m.put()
+
+        n = TestDateTimeModel.get_by_id(m.id)
+        self.assertIsNone(n)
 
 if __name__ == '__main__':
     unittest.main()

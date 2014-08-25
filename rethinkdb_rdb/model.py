@@ -1,5 +1,4 @@
 """ Model and Property classes. Borrowed heavily from google/appengine/ext/ndb/model
-
 """
 import re
 import types
@@ -358,13 +357,6 @@ class Model(object):
                 raise TypeError("Attempted to set non-property type; %s" % name)
             setattr(self, name, value)
 
-    def __json__(self):
-        d = {}
-        for key in dir(self):
-            if not key.startswith('_') and not hasattr(getattr(self, key), '__call__'):
-                d[key] = getattr(self, key)
-        return d
-
     @classmethod
     def query(cls):
         """ The rethinkdb query object. Exposes RQL queries for this table
@@ -406,6 +398,16 @@ class Model(object):
             attr = cls._meta[name]
             attr._do_from_db(entity, value)
         return entity
+
+    def to_dict(self):
+        _doc = {}
+        for name, attr in self._meta.iteritems():
+            _doc[attr._attr_name] = getattr(self, attr._attr_name)
+
+        if self.id:
+            _doc['id'] = self.id
+
+        return _doc
 
     def _to_db(self):
         db_doc = {}
