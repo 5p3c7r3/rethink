@@ -14,7 +14,7 @@
 A connection manager would be nice to build, something that can be easily plugged into Django or Flask request
 cycles and also pull connections from an available pool. For now do something like this:
 
-<pre><code>from rethink import rdb
+<pre><code>import rethinkdb_rdb as rdb
 rdb.connect(host='localhost', port=28015, db='rethink').repl()
 rdb.db_create('rethink').run()
 </code></pre>
@@ -31,6 +31,14 @@ The models look a lot like Appengine NDB Models
 #### Property types
 The property types closely resemble NDB as well, currently working on implementing these with similar default
 indexing behavior. Check the unit tests for examples.
+* `BooleanProperty`
+* `StringProperty`
+* `TextProperty`
+* `IntegerProperty`
+* `PositiveIntegerProperty`
+* `FloatProperty`
+* `DateTimeProperty`
+* `ObjectProperty`
 
 #### Property Options
 Most property types support some standard arguments. The first is an optional argument to specify the database name
@@ -48,9 +56,9 @@ The following additional keyword arguments are also supported
 </tr>
 <tr>
     <td>indexed</td>
-    <td></td>
-    <td></td>
-    <td></td>
+    <td>bool</td>
+    <td>None</td>
+    <td>Indicates whether this property should be indexed as a simple secondary rethinkdb index. If set to false after being created, the index will be removed.</td>
 </tr>
 <tr>
     <td>required</td>
@@ -76,7 +84,9 @@ The following additional keyword arguments are also supported
 There is only one property that maps to the python datetime class:
 * `DateTimeProperty`
 
-    All datetimes are stored in the database with timezone information in UTC time.
+    All datetimes are stored in the database with timezone information in UTC time. Naive datetime will have UTC
+    timezone appended to it. Depending on what you're doing this might be fine, or might mess things up for you, but
+    rethinkdb requires timezone aware datetimes.
 
 <table>
 <tr>

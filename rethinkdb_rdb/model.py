@@ -1,6 +1,7 @@
 """ Model and Property classes. Borrowed heavily from google/appengine/ext/ndb/model
 
 """
+import re
 import types
 import pytz
 from json import dumps
@@ -26,8 +27,6 @@ class Property(object):
     _validator = None
     _indexed = True
     _positional = 1
-
-    # todo test property names / keys that match ^\$reql_.+\$$ aren't allowed by rethinkdb
 
     @utils.positional(1 + _positional)  # Add 1 for self.
     def __init__(self, name=None, indexed=None, required=False, default=None, validator=None):
@@ -267,17 +266,14 @@ class DateTimeProperty(Property):
         else:
             value = pytz.utc.localize(value)
 
-        return iso8601(value.isoformat('T'))
+        return value
 
 
-# todo break this up into list and dict properties?
 class ObjectProperty(Property):
+
     def _validate(self, value):
         if type(value) is not dict and type(value) is not list:
-            raise ValueError('%s field is not dict or list type. Found type: %s' % (
-                self._name,
-                type(value))
-            )
+            raise ValueError('Expected list or dict type. Found %r' % (value,))
 
         return value
 

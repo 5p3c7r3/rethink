@@ -1,52 +1,52 @@
 import pytz
-import rethinkdb_rdb
+import rethinkdb_rdb as rdb
 import unittest
 
 from datetime import datetime
 
 from nose.tools import *
 
-rethinkdb_rdb.connect(host='localhost', port=28015, db='rethink').repl()
+rdb.connect(host='localhost', port=28015, db='rethink').repl()
 try:
-    rethinkdb_rdb.db_drop('rethink').run()
+    rdb.db_drop('rethink').run()
 except Exception:
     pass
-rethinkdb_rdb.db_create('rethink').run()
+rdb.db_create('rethink').run()
 
 
-class TestModel(rethinkdb_rdb.Model):
-    name = rethinkdb_rdb.StringProperty(indexed=False)
+class TestModel(rdb.Model):
+    name = rdb.StringProperty(indexed=False)
 
 
-class TestDateTimeModel(rethinkdb_rdb.Model):
-    name = rethinkdb_rdb.StringProperty()
-    created = rethinkdb_rdb.DateTimeProperty(indexed=False)
+class TestDateTimeModel(rdb.Model):
+    name = rdb.StringProperty()
+    created = rdb.DateTimeProperty(indexed=False)
 
 
-class TestDateTimeAutoNow(rethinkdb_rdb.Model):
-    name = rethinkdb_rdb.StringProperty()
-    created = rethinkdb_rdb.DateTimeProperty(auto_now=True, indexed=False)
+class TestDateTimeAutoNow(rdb.Model):
+    name = rdb.StringProperty()
+    created = rdb.DateTimeProperty(auto_now=True, indexed=False)
 
 
-class TestModelStringProperty(rethinkdb_rdb.Model):
-    name = rethinkdb_rdb.StringProperty("n", indexed=False, required=False, default="__default__", validator=lambda p, val: str(val).upper())
+class TestModelStringProperty(rdb.Model):
+    name = rdb.StringProperty("n", indexed=False, required=False, default="__default__", validator=lambda p, val: str(val).upper())
 
 
-class TestModelBooleanProperty(rethinkdb_rdb.Model):
-    lovable = rethinkdb_rdb.BooleanProperty(indexed=False)
+class TestModelBooleanProperty(rdb.Model):
+    lovable = rdb.BooleanProperty(indexed=False)
 
 
-class TestValidatorMRO(rethinkdb_rdb.Model):
-    children = rethinkdb_rdb.PositiveIntegerProperty(indexed=False)
+class TestValidatorMRO(rdb.Model):
+    children = rdb.PositiveIntegerProperty(indexed=False)
 
 
-class TestFloatProperty(rethinkdb_rdb.Model):
-    dollars = rethinkdb_rdb.FloatProperty(default=1.0, indexed=False)
+class TestFloatProperty(rdb.Model):
+    dollars = rdb.FloatProperty(default=1.0, indexed=False)
 
 
-class TestRequiredProperty(rethinkdb_rdb.Model):
-    name = rethinkdb_rdb.StringProperty(required=True, indexed=False)
-    found_on = rethinkdb_rdb.DateTimeProperty(required=True, indexed=False)
+class TestRequiredProperty(rdb.Model):
+    name = rdb.StringProperty(required=True, indexed=False)
+    found_on = rdb.DateTimeProperty(required=True, indexed=False)
 
 
 class TestModelFunctions(unittest.TestCase):
@@ -183,8 +183,8 @@ class TestModelFunctions(unittest.TestCase):
 
     @raises(TypeError)
     def test_invalid_validator(self):
-        class TestModelStringProperty(rethinkdb_rdb.Model):
-            name = rethinkdb_rdb.StringProperty(validator="not a function")
+        class TestModelStringProperty(rdb.Model):
+            name = rdb.StringProperty(validator="not a function")
 
     @raises(ValueError)
     def test_required_string_property(self):
@@ -207,11 +207,11 @@ class TestModelFunctions(unittest.TestCase):
         self.assertEqual(m.created.isoformat(), my_date.astimezone(pytz.utc).isoformat())
 
     def test_index_creation(self):
-        class TestIndexesModel(rethinkdb_rdb.Model):
-            name = rethinkdb_rdb.StringProperty() # indexed by default
-            a_very_long_verbose_name = rethinkdb_rdb.StringProperty(name='short')
+        class TestIndexesModel(rdb.Model):
+            name = rdb.StringProperty() # indexed by default
+            a_very_long_verbose_name = rdb.StringProperty(name='short')
 
-        indexes = rethinkdb_rdb.table(TestIndexesModel._table_name()).index_list().run()
+        indexes = rdb.table(TestIndexesModel._table_name()).index_list().run()
         self.assertTrue('name' in indexes)
 
         # should use the short codename of a property if provided
