@@ -5,7 +5,7 @@ import types
 import pytz
 from json import dumps
 
-from datetime import date
+from datetime import date, datetime
 
 from . import utils
 
@@ -250,7 +250,6 @@ class DateTimeProperty(Property):
         return value
 
     def _from_db(self, value):
-        # todo do we need to do any massaging here?
         return value
 
     def _to_db(self, value):
@@ -271,6 +270,7 @@ class DateTimeProperty(Property):
         return iso8601(value.isoformat('T'))
 
 
+# todo break this up into list and dict properties?
 class ObjectProperty(Property):
     def _validate(self, value):
         if type(value) is not dict and type(value) is not list:

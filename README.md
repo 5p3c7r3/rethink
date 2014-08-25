@@ -1,4 +1,4 @@
-## RethinkDB Object Mapper
+## RethinkDB Object Mapper Interface
 [![Build Status](https://travis-ci.org/caoimhghin/rethink.svg?branch=master)](https://travis-ci.org/caoimhghin/rethink)
 [![Coverage Status](https://coveralls.io/repos/caoimhghin/rethink/badge.png?branch=master)](https://coveralls.io/r/caoimhghin/rethink?branch=master)
 
@@ -14,11 +14,8 @@
 A connection manager would be nice to build, something that can be easily plugged into Django or Flask request
 cycles and also pull connections from an available pool. For now do something like this:
 
-<pre><code>rdb.connect(host='localhost', port=28015, db='rethink').repl()
-try:
-    rdb.db_drop('rethink').run()
-except Exception:
-    pass
+<pre><code>from rethink import rdb
+rdb.connect(host='localhost', port=28015, db='rethink').repl()
 rdb.db_create('rethink').run()
 </code></pre>
 
@@ -28,7 +25,7 @@ The models look a lot like Appengine NDB Models
 <pre><code>class Contact(rdb.Model):
     first_name = rdb.StringProperty()
     last_name = rdb.StringProperty()
-    created = rdb.DateTimeProperty()`
+    created = rdb.DateTimeProperty()
 </code></pre>
 
 #### Property types

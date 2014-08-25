@@ -198,6 +198,25 @@ class TestModelFunctions(unittest.TestCase):
         m = TestRequiredProperty(name="James Bond")
         m.put()
 
+    def test_timezone_stored_as_utc(self):
+        my_date = datetime(2014, 11, 11, 0, 0, 0, 0, pytz.timezone('US/Pacific'))
+        test_model = TestDateTimeModel(name='Jack', created=my_date)
+        test_model.put()
+
+        m = TestDateTimeModel.get_by_id(test_model.id)
+        self.assertEqual(m.created.isoformat(), my_date.astimezone(pytz.utc).isoformat())
+
+    def test_index_creation(self):
+        class TestIndexesModel(rdb.Model):
+            name = rdb.StringProperty() # indexed by default
+            a_very_long_verbose_name = rdb.StringProperty(name='short')
+
+        indexes = rdb.table(TestIndexesModel._table_name()).index_list().run()
+        self.assertTrue('name' in indexes)
+
+        # should use the short codename of a property if provided
+        self.assertTrue('short' in indexes)
+
 
 if __name__ == '__main__':
     unittest.main()
