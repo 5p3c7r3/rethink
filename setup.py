@@ -1,11 +1,11 @@
 from setuptools import setup
 
 setup(
-  name="rethink-rdb",
+  name="rethinkdb_rdb",
   version="1",
-  description="An object mapper interface for rethinkdb",
+  description="The object mapper interface for rethinkdb",
   url="https://github.com/caoimhghin/rethink",
   maintainer="coimhghin",
-  packages=['rdb'],
+  packages=['rethinkdb_rdb'],
   install_requires=['rethinkdb', 'pytz']
 )
