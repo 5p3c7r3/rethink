@@ -12,5 +12,5 @@ before_script:
   - rethinkdb --daemon
 script:
   - sleep 4
-  - nosetests --with-coverage --cover-package rdb
+  - nosetests --with-coverage --cover-package rethinkdb_rdb
 after_success: coveralls
