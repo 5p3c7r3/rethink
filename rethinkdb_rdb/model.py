@@ -429,7 +429,7 @@ class Model(object):
     def put(self):
         """ Serialize this document to JSON and put it in the database
         """
-        result = table(self._table_name()).insert(self._to_db(), upsert=True).run(self._connection)
+        result = table(self._table_name()).insert(self._to_db(), conflict="update").run(self._connection)
         if 'errors' in result and result['errors'] > 0:
             raise IOError(dumps(result))
         elif result['inserted'] == 1.0:
