@@ -108,6 +108,19 @@ There is only one property that maps to the python datetime class:
 </table>
 
 
+#### Next
+Implement the next items
+* `ComputedProperty`
+* `repeated = True` attribute for Properties to make them stored as lists
+* `get_multi` - along with the concept of a key which will hash ids with the class name
 
 
+#### Example migrating queries from NDB
 
+<pre><code>
+# return cls.query(cls.subject == subject, cls.token == token).get()
+result = cls.query().filter({'subject': subject, 'token': token}).run()
+if result:
+    return cls._from_db(list(result)[0])
+return None
+</code></pre>

@@ -395,7 +395,12 @@ class Model(object):
         entity = cls()
         entity.id = db_dict.pop('id')
         for name, value in db_dict.iteritems():
-            attr = cls._meta[name]
+            attr = cls._meta.get(name)
+            if not attr:
+                # maybe it was removed during class refactor, or
+                # added via some other means.
+                attr = ObjectProperty()
+                cls._meta[name] = attr
             attr._do_from_db(entity, value)
         return entity
 
