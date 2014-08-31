@@ -400,6 +400,7 @@ class Model(object):
                 # maybe it was removed during class refactor, or
                 # added via some other means.
                 attr = ObjectProperty()
+                attr._set_name(name)
                 cls._meta[name] = attr
             attr._do_from_db(entity, value)
         return entity
@@ -407,7 +408,8 @@ class Model(object):
     def to_dict(self):
         _doc = {}
         for name, attr in self._meta.iteritems():
-            _doc[attr._attr_name] = getattr(self, attr._attr_name)
+            if hasattr(self, attr._attr_name):
+                _doc[attr._attr_name] = getattr(self, attr._attr_name)
 
         if self.id:
             _doc['id'] = self.id

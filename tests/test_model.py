@@ -148,6 +148,14 @@ class TestModelFunctions(unittest.TestCase):
         m.put()
         self.assertTrue(m.lovable)
 
+        q = TestModelBooleanProperty()
+        q.put()
+        q = TestModelBooleanProperty.get_by_id(q.id)
+        q.lovable = True
+        q.put()
+        r = TestModelBooleanProperty.get_by_id(q.id)
+        self.assertTrue(r.lovable)
+
 
     @raises(ValueError)
     def test_model_invalid_boolean_property(self):
