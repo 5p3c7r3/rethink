@@ -360,8 +360,9 @@ class Model(object):
         return table(cls._table_name())
 
     @classmethod
-    def __deserializer(cls, results):
+    def _deserializer(cls, results):
         for result in results:
+            print result
             yield cls._from_db(result)
 
     @classmethod
@@ -382,12 +383,8 @@ class Model(object):
             rq = rq.skip(page * page_size).limit(page_size+1)
 
         results = list(rq.run(connection))
-        if results:
-            more = len(results) > page_size
-            if more:
-                results = results[:-1]
-            return cls.__deserializer(results), more
-        return None, False
+        c = len(results)
+        return cls._deserializer(results[:min(c, page_size)]), c > page_size
 
     @classmethod
     def get_by_id(cls, id, connection=None):

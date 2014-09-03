@@ -257,8 +257,14 @@ class TestModelFunctions(unittest.TestCase):
         count = 0
         for result in results:
             count += 1
-        print "COUNT %s" % count
         self.assertTrue(count == 2)
+
+        results, more = TestModel.all(predicate={'name': 'm1'}, order_by={'index': rdb.desc('name')}, page=0, page_size=20)
+        self.assertFalse(more)
+        count = 0
+        for result in results:
+            count += 1
+        self.assertTrue(count == 5)
 
 if __name__ == '__main__':
     unittest.main()
