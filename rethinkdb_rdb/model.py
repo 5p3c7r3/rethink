@@ -383,7 +383,10 @@ class Model(object):
 
         results = list(rq.run(connection))
         if results:
-            return cls.__deserializer(results[:-1]), len(results) > page_size
+            more = len(results) > page_size
+            if more:
+                results = results[:-1]
+            return cls.__deserializer(results), more
         return None, False
 
     @classmethod
