@@ -294,12 +294,8 @@ class Model(object):
 
     id = None
 
-    _limit = 0
-    _order_by = None
     _meta = None
     _values = None
-    _connection = None
-    _non_atomic = True
 
     def __init__(self, **kwargs):
         if 'id' in kwargs:
@@ -364,9 +360,16 @@ class Model(object):
         return table(cls._table_name())
 
     @classmethod
+    def __deserializer(cls, results):
+        for result in results:
+            yield cls._from_db(result)
+
+    @classmethod
     def all(cls, predicate=None, order_by=None, page=None, page_size=None, connection=None):
-        """ Wrap a bunch of the reql into one function and return generator that serializes
+        """ Wrap REQL into one function and return generator that serializes
         each result into an instance of the class.
+
+        :returns generator, more (bool)
         """
         rq = cls.query()
         if predicate:
@@ -374,12 +377,12 @@ class Model(object):
         if order_by:
             rq = rq.order_by(order_by)
         if page and page_size:
-            rq = rq.skip(page * page_size)
+            rq = rq.skip(page * page_size).limit(page_size+1)
 
-        results = rq.run(connection)
+        results = list(rq.run(connection))
         if results:
-            for result in results:
-                yield cls._from_db(result)
+            return cls.__deserializer(results), len(results) > page_size
+        return None, False
 
     @classmethod
     def get_by_id(cls, id, connection=None):
@@ -438,7 +441,7 @@ class Model(object):
     def put(self):
         """ Serialize this document to JSON and put it in the database
         """
-        result = table(self._table_name()).insert(self._to_db(), conflict="update").run(self._connection)
+        result = table(self._table_name()).insert(self._to_db(), conflict="update").run()
         if 'errors' in result and result['errors'] > 0:
             raise IOError(dumps(result))
         elif result['inserted'] == 1.0:

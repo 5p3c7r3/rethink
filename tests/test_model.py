@@ -12,7 +12,7 @@ try:
 except Exception:
     pass
 rdb.db_create('rethink').run()
-
+rdb.Cursor
 
 class TestModel(rdb.Model):
     name = rdb.StringProperty(indexed=False)
@@ -227,7 +227,7 @@ class TestModelFunctions(unittest.TestCase):
 
     def test_to_dict(self):
         m = TestModel(
-            name = "James Bond"
+            name="James Bond"
         )
         m.put()
 
@@ -238,12 +238,24 @@ class TestModelFunctions(unittest.TestCase):
 
     def test_get_wrong_type_id(self):
         m = TestModelStringProperty(
-            name = "James Bond"
+            name="James Bond"
         )
         m.put()
 
         n = TestDateTimeModel.get_by_id(m.id)
         self.assertIsNone(n)
+
+    def test_all(self):
+        TestModel(name='m1').put()
+        TestModel(name='m2').put()
+        TestModel(name='m3').put()
+        TestModel(name='m4').put()
+        TestModel(name='m5').put()
+
+        results, more = TestModel.all(page=0, page_size=2)
+        self.assertTrue(more)
+        for result in results:
+            self.assertTrue(result.name)
 
 if __name__ == '__main__':
     unittest.main()
