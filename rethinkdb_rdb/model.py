@@ -362,7 +362,6 @@ class Model(object):
     @classmethod
     def _deserializer(cls, results):
         for result in results:
-            print result
             yield cls._from_db(result)
 
     @classmethod
