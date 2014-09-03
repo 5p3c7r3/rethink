@@ -12,10 +12,10 @@ try:
 except Exception:
     pass
 rdb.db_create('rethink').run()
-rdb.Cursor
+
 
 class TestModel(rdb.Model):
-    name = rdb.StringProperty(indexed=False)
+    name = rdb.StringProperty()
 
 
 class TestDateTimeModel(rdb.Model):
@@ -247,15 +247,18 @@ class TestModelFunctions(unittest.TestCase):
 
     def test_all(self):
         TestModel(name='m1').put()
-        TestModel(name='m2').put()
-        TestModel(name='m3').put()
-        TestModel(name='m4').put()
-        TestModel(name='m5').put()
+        TestModel(name='m1').put()
+        TestModel(name='m1').put()
+        TestModel(name='m1').put()
+        TestModel(name='m1').put()
 
-        results, more = TestModel.all(page=0, page_size=2)
+        results, more = TestModel.all(predicate={'name': 'm1'}, order_by={'index': rdb.desc('name')}, page=0, page_size=2)
         self.assertTrue(more)
+        count = 0
         for result in results:
-            self.assertTrue(result.name)
+            count += 1
+        print "COUNT %s" % count
+        self.assertTrue(count == 2)
 
 if __name__ == '__main__':
     unittest.main()

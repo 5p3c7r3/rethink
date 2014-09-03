@@ -369,19 +369,21 @@ class Model(object):
         """ Wrap REQL into one function and return generator that serializes
         each result into an instance of the class.
 
-        :returns generator, more (bool)
+        :param predicate: a dictionary of filter terms {'attribute': 'val'}
+        :param order_by: a dictionary of order terms {'index': rdb.desc('created')}
+        :return generator, more (bool)
         """
         rq = cls.query()
+        if order_by:
+            rq = rq.order_by(**order_by)
         if predicate:
             rq = rq.filter(predicate)
-        if order_by:
-            rq = rq.order_by(order_by)
-        if page and page_size:
+        if page is not None and page_size:
             rq = rq.skip(page * page_size).limit(page_size+1)
 
         results = list(rq.run(connection))
         if results:
-            return cls.__deserializer(results), len(results) > page_size
+            return cls.__deserializer(results[:-1]), len(results) > page_size
         return None, False
 
     @classmethod
