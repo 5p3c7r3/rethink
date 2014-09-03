@@ -358,21 +358,28 @@ class Model(object):
             setattr(self, name, value)
 
     @classmethod
-    def query(cls):
+    def query(cls, predicate=None, order_by=None, page=None, page_size=None):
         """ The rethinkdb query object. Exposes RQL queries for this table
         """
-        rq = table(cls._table_name())
-        if cls._order_by:
-            rq = rq.order_by(*tuple(
-                [order if not order[:1] == '-' else desc(order[1:]) for order in list(cls._order_by)]
-            ))
-        if cls._limit:
-            rq = rq.limit(int(cls._limit))
-        return rq
+        return table(cls._table_name())
 
     @classmethod
-    def all(cls, connection=None):
-        return [cls(**row) for row in cls.query().run(connection)]
+    def all(cls, predicate=None, order_by=None, page=None, page_size=None, connection=None):
+        """ Wrap a bunch of the reql into one function and return generator that serializes
+        each result into an instance of the class.
+        """
+        rq = cls.query()
+        if predicate:
+            rq = rq.filter(predicate)
+        if order_by:
+            rq = rq.order_by(order_by)
+        if page and page_size:
+            rq = rq.skip(page * page_size)
+
+        results = rq.run(connection)
+        if results:
+            for result in results:
+                yield cls._from_db(result)
 
     @classmethod
     def get_by_id(cls, id, connection=None):
