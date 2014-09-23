@@ -6,12 +6,12 @@ from datetime import datetime
 
 from nose.tools import *
 
-rdb.connect(host='localhost', port=28015, db='rethink').repl()
-try:
-    rdb.db_drop('rethink').run()
-except Exception:
-    pass
-rdb.db_create('rethink').run()
+with rdb.Model._get_connection() as conn:
+    try:
+        rdb.db_drop('rethink').run(conn)
+    except Exception:
+        pass
+    rdb.db_create('rethink').run(conn)
 
 
 class TestModel(rdb.Model):
@@ -216,11 +216,14 @@ class TestModelFunctions(unittest.TestCase):
 
     def test_index_creation(self):
         class TestIndexesModel(rdb.Model):
-            name = rdb.StringProperty() # indexed by default
+            a_name = rdb.StringProperty()  # indexed by default
             a_very_long_verbose_name = rdb.StringProperty(name='short')
 
-        indexes = rdb.table(TestIndexesModel._table_name()).index_list().run()
-        self.assertTrue('name' in indexes)
+        with rdb.Model._get_connection() as conn:
+            indexes = rdb.table(TestIndexesModel._table_name()).index_list().run(conn)
+        print indexes
+
+        self.assertTrue('a_name' in indexes)
 
         # should use the short codename of a property if provided
         self.assertTrue('short' in indexes)

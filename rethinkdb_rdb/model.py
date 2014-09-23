@@ -3,6 +3,7 @@
 import re
 import types
 import pytz
+import logging
 from json import dumps
 
 from datetime import date, datetime
@@ -15,6 +16,47 @@ from rethinkdb.query import js, http, json, args, error, random, do, row, table,
 from rethinkdb.errors import RqlError, RqlClientError, RqlCompileError, RqlRuntimeError, RqlDriverError
 from rethinkdb.ast import expr, RqlQuery
 import rethinkdb.docs
+
+import Queue
+import threading
+from contextlib import contextmanager
+
+lock = threading.Lock()
+
+
+DATABASE = {
+    'host': 'localhost',
+    'port': 28015,
+    'db': 'rethink'
+}
+
+
+class ConnectionPool(object):
+    """ Manage a pool of connections
+    """
+
+    _idle = Queue.Queue()
+
+    _active = 0
+
+    _total = 5
+
+    @contextmanager
+    def get(self):
+        if self._idle.empty() and self._active < self._total:
+            connection = connect(host=DATABASE['host'], port=DATABASE['port'], db=DATABASE['db'])
+        else:
+            connection = self._idle.get()
+
+        self._active += 1
+
+        yield connection
+
+        self._idle.put(connection)
+        self._active -= 1
+
+
+connections = ConnectionPool()
 
 
 class Property(object):
@@ -334,16 +376,17 @@ class Model(object):
         if cls.__name__ == 'Model':
             return  # skip call on this class
 
-        tables = table_list().run()
-        if not cls._table_name() in tables:
-            table_create(cls._table_name()).run()
+        with cls._get_connection() as conn:
+            tables = table_list().run(conn)
+            if not cls._table_name() in tables:
+                table_create(cls._table_name()).run(conn)
 
-        indexes = table(cls._table_name()).index_list().run()
-        for name, attr in cls._meta.iteritems():
-            if attr._indexed and attr._name not in indexes:
-                table(cls._table_name()).index_create(attr._name).run(noreply=True)
-            elif not attr._indexed and attr._name in indexes:
-                table(cls._table_name()).index_drop(attr._name).run(noreply=True)
+            indexes = table(cls._table_name()).index_list().run(conn)
+            for name, attr in cls._meta.iteritems():
+                if attr._indexed and attr._name not in indexes:
+                    table(cls._table_name()).index_create(attr._name).run(conn)
+                elif not attr._indexed and attr._name in indexes:
+                    table(cls._table_name()).index_drop(attr._name).run(conn, noreply=True)
 
     def _set_attributes(self, kwargs):
         cls = self.__class__
@@ -354,7 +397,11 @@ class Model(object):
             setattr(self, name, value)
 
     @classmethod
-    def query(cls, predicate=None, order_by=None, page=None, page_size=None):
+    def _get_connection(cls):
+        return connections.get()
+
+    @classmethod
+    def query(cls):
         """ The rethinkdb query object. Exposes RQL queries for this table
         """
         return table(cls._table_name())
@@ -365,7 +412,7 @@ class Model(object):
             yield cls._from_db(result)
 
     @classmethod
-    def all(cls, predicate=None, order_by=None, page=None, page_size=None, connection=None):
+    def all(cls, predicate=None, order_by=None, page=None, page_size=None):
         """ Wrap REQL into one function and return generator that serializes
         each result into an instance of the class.
 
@@ -381,25 +428,28 @@ class Model(object):
         if page is not None and page_size:
             rq = rq.skip(page * page_size).limit(page_size+1)
 
-        results = list(rq.run(connection))
+        with cls._get_connection() as conn:
+            results = list(rq.run(conn))
         c = len(results)
         return cls._deserializer(results[:min(c, page_size)]), c > page_size
 
     @classmethod
-    def get_by_id(cls, id, connection=None):
+    def get_by_id(cls, id):
         if not id:
             return None
 
-        result = cls.query().get(id).run(connection)
+        with cls._get_connection() as conn:
+            result = cls.query().get(id).run(conn)
         if result:
             result = cls._from_db(result)
         return result
 
     @classmethod
-    def delete(cls, id, connection=None):
+    def delete(cls, id):
         if not id:
             return None
-        return cls.query().get(id).delete().run(connection)
+        with cls._get_connection() as conn:
+            return cls.query().get(id).delete().run(conn)
 
     @classmethod
     def _from_db(cls, db_dict):
@@ -442,7 +492,8 @@ class Model(object):
     def put(self):
         """ Serialize this document to JSON and put it in the database
         """
-        result = table(self._table_name()).insert(self._to_db(), conflict="update").run()
+        with self._get_connection() as conn:
+            result = table(self._table_name()).insert(self._to_db(), conflict="update").run(conn)
         if 'errors' in result and result['errors'] > 0:
             raise IOError(dumps(result))
         elif result['inserted'] == 1.0:
