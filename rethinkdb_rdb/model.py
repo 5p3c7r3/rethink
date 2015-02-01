@@ -50,10 +50,11 @@ class ConnectionPool(object):
 
         self._active += 1
 
-        yield connection
-
-        self._idle.put(connection)
-        self._active -= 1
+        try:
+            yield connection
+        finally:
+            self._idle.put(connection)
+            self._active -= 1
 
 
 connections = ConnectionPool()
