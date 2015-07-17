@@ -85,10 +85,7 @@ class Property(object):
             self._indexed = indexed
 
         if default is not None:
-            if hasattr(default, '__call__'):
-                self._default = default()
-            else:
-                self._default = default
+            self._default = default
 
         if required is not None:
             self._required = required
@@ -188,7 +185,8 @@ class Property(object):
         """ Transform the python value for storage in the db, first running all
         validators on the property.
         """
-        value = self._do_validate(entity._values.get(self._name, self._default))
+        default = hasattr(self._default, '__call__') and self._default() or self._default
+        value = self._do_validate(entity._values.get(self._name, default))
         if hasattr(self, '_to_db'):
             value = self._to_db(value)
         return value
@@ -204,7 +202,8 @@ class Property(object):
         """Descriptor protocol: get the value from the entity."""
         if entity is None:
             return self  # __get__ called on class
-        return entity._values.get(self._name, self._default)
+        default = hasattr(self._default, '__call__') and self._default() or self._default
+        return entity._values.get(self._name, default)
 
     def __set__(self, entity, value):
         """Descriptor protocol: set the value on the entity."""
