@@ -6,6 +6,10 @@ from datetime import datetime
 
 from nose.tools import *
 
+
+def callable_default():
+    return "__default__"
+
 with rdb.Model._get_connection() as conn:
     try:
         rdb.db_drop('rethink').run(conn)
@@ -47,6 +51,10 @@ class TestFloatProperty(rdb.Model):
 class TestRequiredProperty(rdb.Model):
     name = rdb.StringProperty(required=True, indexed=False)
     found_on = rdb.DateTimeProperty(required=True, indexed=False)
+
+
+class TestCallableDefaultProperty(rdb.Model):
+    name = rdb.StringProperty(default=callable_default)
 
 
 class TestModelFunctions(unittest.TestCase):
@@ -205,6 +213,12 @@ class TestModelFunctions(unittest.TestCase):
         # missing required DateTimeProperty
         m = TestRequiredProperty(name="James Bond")
         m.put()
+
+    def test_callable_default_property(self):
+        m = TestCallableDefaultProperty()
+        m.put()
+        self.assertEqual(m.name, "__default__")
+
 
     def test_timezone_stored_as_utc(self):
         my_date = datetime(2014, 11, 11, 0, 0, 0, 0, pytz.timezone('US/Pacific'))

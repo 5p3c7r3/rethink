@@ -85,7 +85,10 @@ class Property(object):
             self._indexed = indexed
 
         if default is not None:
-            self._default = default
+            if hasattr(default, '__call__'):
+                self._default = default()
+            else:
+                self._default = default
 
         if required is not None:
             self._required = required
