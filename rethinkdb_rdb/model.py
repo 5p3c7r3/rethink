@@ -386,9 +386,9 @@ class Model(object):
 
             indexes = table(cls._table_name()).index_list().run(conn)
             for name, attr in cls._meta.iteritems():
-                if attr._indexed and attr._name not in indexes:
+                if attr._indexed and attr._name not in indexes and attr._name != 'id':
                     table(cls._table_name()).index_create(attr._name).run(conn)
-                elif not attr._indexed and attr._name in indexes:
+                elif not attr._indexed and attr._name in indexes and attr._name != 'id':
                     table(cls._table_name()).index_drop(attr._name).run(conn, noreply=True)
 
     def _set_attributes(self, kwargs):
